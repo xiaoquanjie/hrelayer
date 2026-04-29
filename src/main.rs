@@ -10,13 +10,13 @@ use tokio::sync::watch;
 use tokio::time::sleep;
 
 mod app_state;
+mod backend;
 mod configuration;
+mod extract;
+mod inbox;
 mod run;
 mod trace;
-mod mailbox;
 mod util;
-mod extract;
-mod backend;
 
 #[tokio::main]
 async fn main() {
@@ -30,14 +30,23 @@ async fn main() {
 
     println!("{:?}", configuration);
 
+    let to_console;
+    let to_file;
+
     #[cfg(debug_assertions)]
-    let to_console = true;
+    {
+        to_console = true;
+        to_file = false;
+    }
 
     #[cfg(not(debug_assertions))]
-    let to_console = false;
+    {
+        to_console = false;
+        to_file = true;
+    }
 
     // 初始化日志
-    let _guard = trace::init(&configuration, false, to_console);
+    let _guard = trace::init(&configuration, to_file, to_console);
 
     if let Err(e) = run(configuration).await {
         tracing::error!("{:#}", e);
@@ -66,7 +75,6 @@ async fn run(configuration: Configuration) -> Result<(), Error> {
     // 设置状态
     app_state
         .set_id(registrar.service().key.id.unwrap())
-        .set_namespace(configuration.service.namespace.clone())
         .set_running(registrar.status().registered());
 
     if configuration.server.is_http1() {
@@ -89,6 +97,7 @@ async fn run(configuration: Configuration) -> Result<(), Error> {
     }
 
     drop(registrar);
+
     // wait for seconds
     sleep(Duration::from_secs(5)).await;
     tracing::info!("exit ok");

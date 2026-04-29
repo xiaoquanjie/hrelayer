@@ -2,4 +2,11 @@
 一个支持http1，http2的路由器，支持服务路由、服务注册与发现
 
 ```
-cccc
+需要准备的东西：
+1. cmake：内部依赖librdkafka v1.9.2+.库，所以需要安装cmake进行编译
+2. etcd：使用etcd作为服务注册与发现的组件
+
+hrealyer.toml是配置文件
+
+启动服务：
+ hrelayer.exe --config hrelayer.toml

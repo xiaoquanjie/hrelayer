@@ -1,8 +1,8 @@
 use crate::app_state::AppState;
 use crate::backend::grpc::{grpc_reflection, relay_to_backend};
 use crate::configuration::Configuration;
-use crate::extract::UriExtract;
-use crate::mailbox::grpc::write_to_mailbox;
+use crate::extract::{HeaderExtract, UriExtract};
+use crate::inbox::grpc::write_inbox;
 use anyhow::Error;
 use http_pool::body::VariantBody;
 use http_pool::net_pool::Pools;
@@ -21,7 +21,7 @@ pub async fn run(app_state: AppState, conf: &Configuration) -> Result<(), Error>
     })
     .map_err(|e| Error::new(e).context("build http2 relay error"))?;
 
-    super::run(app_state, conf, h.pools(), h);
+    super::watch(app_state, conf, h.pools(), h);
     Ok(())
 }
 
@@ -31,7 +31,7 @@ async fn relay_fn(
     request: Request<Incoming>,
 ) -> Result<Response<VariantBody>, std::io::Error> {
     let uri = request.uri().clone();
-    if let Err(e) = super::check_app_state(&app_state) {
+    if let Err(e) = util::is_app_quit(&app_state) {
         // 暂停业务处理
         tracing::error!(
             "{}",
@@ -59,7 +59,7 @@ async fn relay_fn(
         extract,
         pools,
         request,
-        write_to_mailbox,
+        write_inbox,
         relay_to_backend
     }
 }

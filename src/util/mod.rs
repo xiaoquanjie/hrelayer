@@ -1,6 +1,7 @@
+use crate::app_state::AppState;
 use anyhow::anyhow;
 use detcd::{DestinationRule, Meta};
-use http_pool::body::{VariantBody, variant_body};
+use http_pool::body::{VariantBody, empty, variant_body};
 use http_pool::net_pool::{BackendState, Pool, Pools};
 use hyper::body::{Body, Buf, Bytes, Incoming};
 use hyper::{Request, Response, StatusCode};
@@ -103,9 +104,27 @@ where
         .unwrap()
 }
 
-pub fn invalid_path_response() -> Response<VariantBody> {
-    text_response(
-        StatusCode::INTERNAL_SERVER_ERROR,
-        Some(Bytes::from("invalid path")),
-    )
+pub fn invalid_path_response(is_grpc: bool) -> Response<VariantBody> {
+    if is_grpc {
+        Response::builder()
+            .status(StatusCode::OK)
+            .header("Content-Type", GRPC_CONTENT_TYPE)
+            .header("grpc-status", "12")
+            .header("grpc-message", "invalid path")
+            .body(empty())
+            .unwrap()
+    } else {
+        text_response(StatusCode::OK, Some(Bytes::from("invalid path")))
+    }
+}
+
+pub fn is_app_quit(app_state: &AppState) -> Result<(), Response<VariantBody>> {
+    if !app_state.get_running() {
+        Err(text_response(
+            StatusCode::BAD_GATEWAY,
+            Some(Bytes::from("relay stop work")),
+        ))
+    } else {
+        Ok(())
+    }
 }

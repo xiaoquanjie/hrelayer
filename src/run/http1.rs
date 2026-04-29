@@ -1,8 +1,8 @@
 use crate::app_state::AppState;
 use crate::backend::http::relay_to_backend;
 use crate::configuration::Configuration;
-use crate::extract::UriExtract;
-use crate::mailbox::http::write_to_mailbox;
+use crate::extract::{HeaderExtract, UriExtract};
+use crate::inbox::http::write_inbox;
 use anyhow::Error;
 use http_pool::body::VariantBody;
 use http_pool::net_pool::Pools;
@@ -22,17 +22,17 @@ pub async fn run(app_state: AppState, conf: &Configuration) -> Result<(), Error>
     })
     .map_err(|e| Error::new(e).context("build http1 relay error"))?;
 
-    super::run(app_state, conf, h.pools(), h);
+    super::watch(app_state, conf, h.pools(), h);
     Ok(())
 }
 
 async fn relay_fn(
     app_state: AppState,
     pools: Pools<http_pool::http1::Pool>,
-    req: Request<Incoming>,
+    request: Request<Incoming>,
 ) -> Result<Response<VariantBody>, std::io::Error> {
-    let uri = req.uri().clone();
-    if let Err(e) = super::check_app_state(&app_state) {
+    let uri = request.uri().clone();
+    if let Err(e) = util::is_app_quit(&app_state) {
         // 暂停业务处理
         tracing::error!(
             "{}",
@@ -42,7 +42,7 @@ async fn relay_fn(
     }
 
     // 提取服务信息
-    let uri = req.uri().clone();
+    let uri = request.uri().clone();
     let extract = uri.extract_http();
 
     super::common_relay! {
@@ -50,8 +50,8 @@ async fn relay_fn(
         app_state,
         extract,
         pools,
-        req,
-        write_to_mailbox,
+        request,
+        write_inbox,
         relay_to_backend
     }
 }

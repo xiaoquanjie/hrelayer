@@ -2,10 +2,7 @@ use crate::app_state::AppState;
 use crate::configuration::Configuration;
 use detcd::history::{History, HistoryEvent, HistoryType};
 use detcd::{Service, ServiceKey};
-use http_pool::body::VariantBody;
 use http_pool::net_pool::{Pool, Pools};
-use hyper::body::Bytes;
-use hyper::{Response, StatusCode};
 use net_relay::RelayExt;
 use service_pool_util::pools_with_extra::PoolsWithExtra;
 use service_pool_util::pools_with_service::PoolsWithService;
@@ -13,7 +10,7 @@ use service_pool_util::pools_with_service::PoolsWithService;
 pub mod http1;
 pub mod http2;
 
-fn run<P: Pool + Default + 'static, H: RelayExt + 'static>(
+fn watch<P: Pool + Default + 'static, H: RelayExt + 'static>(
     mut app_state: AppState,
     conf: &Configuration,
     pools: Pools<P>,
@@ -78,17 +75,6 @@ fn run<P: Pool + Default + 'static, H: RelayExt + 'static>(
     });
 }
 
-fn check_app_state(app_state: &AppState) -> Result<(), Response<VariantBody>> {
-    if !app_state.get_running() {
-        Err(util::text_response(
-            StatusCode::BAD_GATEWAY,
-            Some(Bytes::from("relay stop work")),
-        ))
-    } else {
-        Ok(())
-    }
-}
-
 #[macro_export]
 macro_rules! common_relay {
     (
@@ -101,19 +87,20 @@ macro_rules! common_relay {
         $relay_to_backend: ident
     ) => {
         use crate::util;
+        let is_grpc = $req.headers().is_grpc_content_type();
         let extract = match $extract {
             Err(_) => {
-                return Ok(util::invalid_path_response());
+                return Ok(util::invalid_path_response(is_grpc));
             }
             Ok(e) => e,
         };
 
         if extract.is_mailbox() {
-            if !extract.is_send_method() {
-                return Ok(util::invalid_path_response());
+            if extract.method != "send" {
+                return Ok(util::invalid_path_response(is_grpc));
             }
             let (b, e) = $write_to_mailbox(
-                &$app_state.mb_builder,
+                &$app_state.inbox_writer,
                 $app_state.namespace.as_ref(),
                 $pools,
                 $req,
@@ -121,20 +108,24 @@ macro_rules! common_relay {
             .await
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, format!("{:#}", e)))?;
             if let Some(e) = e {
-                tracing::error!("{:#}", e.context("mailbox operation error occurred"));
+                tracing::error!("{:#}", e.context("inbox operation error occurred"));
             }
             Ok(b)
         } else {
-            match $relay_to_backend(extract.service.to_string(), $pools, $req).await {
+            let service = match $req.headers().extract_target() {
+                None => extract.service.to_string(),
+                Some(t) => t,
+            };
+
+            match $relay_to_backend(service, $pools, $req).await {
                 Ok(b) => Ok(b),
                 Err(e) => {
                     tracing::error!("{:#}", e.context(format!("{:?} error occurred", $uri)));
-                    Ok(util::invalid_path_response())
+                    Ok(util::invalid_path_response(is_grpc))
                 }
             }
         }
     };
 }
 
-use crate::util;
 pub use common_relay;

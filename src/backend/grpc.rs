@@ -35,7 +35,7 @@ pub async fn grpc_reflection(
     pools: Pools<http2::Pool>,
     request: Request<Incoming>,
 ) -> Result<Response<VariantBody>, Error> {
-    let target = request.headers().get("x-service").map(|s| s.to_str().unwrap().to_string());
+    let target = request.headers().extract_target();
     // 拆分
     let old_uri = request.uri().clone();
     let (old_parts, old_body) = request.into_parts();

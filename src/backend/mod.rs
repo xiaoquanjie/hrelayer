@@ -9,15 +9,17 @@ macro_rules! to_backend {
          $service: ident
      ) => {{
         let (pool, meta) = get_pool_and_meta(&$pools, &$service)?;
-        let service_id = $req.headers().extract_target();
 
         // 获取发送者
         let mut sender = match meta.state {
-            Some(ServiceState::Fixed) => pool
+            Some(ServiceState::Fixed) => {
+                let service_id = $req.headers().extract_target_id();
+                pool
                 .clone()
                 .target(get_fixed_address(&pool, service_id, meta.instances)?.get_address())
                 .await
-                .map_err(|e| anyhow::Error::new(e))?,
+                .map_err(|e| anyhow::Error::new(e))?
+            },
             _ => pool
                 .get(parse_rule(&$req, &meta)?)
                 .await

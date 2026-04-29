@@ -9,11 +9,7 @@ pub struct HttpExtract<'a> {
 
 impl<'a> HttpExtract<'a> {
     pub fn is_mailbox(&self) -> bool {
-        self.service == "mailbox"
-    }
-
-    pub fn is_send_method(&self) -> bool {
-        self.method == "send"
+        self.service == "inbox.inbox"
     }
 }
 
@@ -27,11 +23,7 @@ pub struct GrpcExtract<'a> {
 
 impl<'a> GrpcExtract<'a> {
     pub fn is_mailbox(&self) -> bool {
-        self.service == "mailbox"
-    }
-
-    pub fn is_send_method(&self) -> bool {
-        self.method == "send"
+        self.package == "inbox" && self.service == "inbox"
     }
 
     pub fn is_reflection(&self) -> bool {
@@ -84,24 +76,40 @@ fn extract_service_method(path: &str) -> Result<(&str, &str), &str> {
 /// 提取服务id
 pub trait HeaderExtract {
     ///
-    fn extract_target(&self) -> Option<u32>;
+    fn extract_target_id(&self) -> Option<u32>;
+
+    fn extract_target(&self) -> Option<String>;
 
     fn is_trailer_only(&self) -> bool;
+
+    fn is_grpc_content_type(&self) -> bool;
 }
 
 impl HeaderExtract for hyper::HeaderMap<hyper::header::HeaderValue> {
-    fn extract_target(&self) -> Option<u32> {
-        for (k, v) in self.iter() {
-            if k.eq("target_service_id") {
-                let id = String::from_utf8_lossy(v.as_bytes());
-                let id: Result<u32, _> = id.parse();
-                return id.ok();
-            }
-        }
-        None
+    fn extract_target_id(&self) -> Option<u32> {
+        self.get("x-target-id")
+            .map(|v| v.to_str().ok())
+            .flatten()
+            .map(|v| v.parse::<u32>().ok())
+            .flatten()
+    }
+
+    fn extract_target(&self) -> Option<String> {
+        self.get("x-target")
+            .map(|v| v.to_str().ok())
+            .flatten()
+            .map(|v| v.to_string())
     }
 
     fn is_trailer_only(&self) -> bool {
         self.get("grpc-status").is_some() && self.get("grpc-message").is_some()
+    }
+
+    fn is_grpc_content_type(&self) -> bool {
+        self.get("Content-Type")
+            .map(|v| v.to_str().ok())
+            .flatten()
+            .filter(|v| *v == "application/grpc")
+            .is_some()
     }
 }

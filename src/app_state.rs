@@ -14,8 +14,8 @@ pub struct AppState {
     pub namespace: Option<String>,
     /// etcd
     pub etcd_client: detcd::client::Client,
-    /// mailbox
-    pub mb_builder: kmailbox::Builder,
+    /// inbox
+    pub inbox_writer: kinbox::writer::Writer,
     /// 运行标记
     pub running: Arc<AtomicBool>,
     /// 退出
@@ -29,12 +29,13 @@ impl AppState {
     ) -> Result<Self, Error> {
         Ok(Self {
             id: 0,
-            namespace: None,
+            namespace: configuration.service.namespace.clone(),
             etcd_client: detcd::client::Builder::new()
                 .build(&configuration.etcd.endpoints)
                 .await
                 .map_err(|e| Error::new(e).context("connect etcd error"))?,
-            mb_builder: kmailbox::Builder::new(&configuration.kafka.servers),
+            inbox_writer: kinbox::writer::Writer::new_with_brokers(&configuration.kafka.servers)
+                .map_err(|e| Error::new(e).context("create inbox writer error"))?,
             running: Arc::new(AtomicBool::new(true)),
             quit_rx,
         })
@@ -54,6 +55,7 @@ impl AppState {
         self
     }
 
+    #[allow(unused)]
     pub fn set_namespace(&mut self, ns: Option<String>) -> &mut Self {
         self.namespace = ns;
         self

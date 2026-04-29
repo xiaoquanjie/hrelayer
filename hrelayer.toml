@@ -1,6 +1,6 @@
 [server]
 listen = 30002 # defalut 8080
-protocol = "http2" #grpc or http or http2, default http
+protocol = "http" #grpc or http or http2, default http
 ssl = false # default false
 
 [service]

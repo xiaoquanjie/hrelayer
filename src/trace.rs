@@ -12,6 +12,7 @@ pub fn init(c: &Configuration, to_file: bool, to_console: bool) -> Option<Worker
         (
             Some(
                 fmt::layer()
+                    .with_target(true)
                     .with_ansi(false)
                     .with_writer(b)
                     .with_filter(c.log.new_env_filter()),
@@ -27,7 +28,7 @@ pub fn init(c: &Configuration, to_file: bool, to_console: bool) -> Option<Worker
             .with(file)
             .with(
                 fmt::layer()
-                    .with_target(false)
+                    .with_target(true)
                     .with_filter(c.log.new_env_filter()),
             )
             .init(),
