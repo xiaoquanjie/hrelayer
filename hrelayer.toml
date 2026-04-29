@@ -1,0 +1,36 @@
+[server]
+listen = 30002 # defalut 8080
+protocol = "http2" #grpc or http or http2, default http
+ssl = false # default false
+
+[service]
+namespace = "default"
+ip = "localhost"
+port = 30002
+ttl = 60
+
+[ssl]
+certificate = ""
+certificate_key = ""
+
+[kafka]
+servers = [
+    "192.168.102.8:9092"
+]
+
+[etcd]
+endpoints = [
+    "localhost:2379"
+]
+
+[log]
+level = 0 # default trace
+output = "./"
+hyper_off = true # defalut true
+h2_off = true # defalut true
+tonic_off = true # defalut true
+tower_off = true # defalut true
+etcd_off = true # defalut true
+pool_off = false # default true
+rustls_off = true # default true
+hrelay_off = false
